@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-const layout = "20060102"
+const Layout = "20060102"
 
-func stringToTime(dateString string, layout string) (time.Time, error) {
+func StringToTime(dateString string, layout string) (time.Time, error) {
 	parsedDate, err := time.Parse(layout, dateString)
 	if err != nil {
 		return time.Time{}, err
@@ -18,11 +18,11 @@ func stringToTime(dateString string, layout string) (time.Time, error) {
 }
 
 func NextDate(now string, date string, repeat string) (string, error) {
-	nowTimeTime, err := stringToTime(now, layout)
+	nowTimeTime, err := StringToTime(now, Layout)
 	if err != nil {
 		return "", fmt.Errorf("invalid date: %s", now)
 	}
-	startDateTimeTime, err := stringToTime(date, layout)
+	startDateTimeTime, err := StringToTime(date, Layout)
 	if err != nil {
 		return "", fmt.Errorf("invalid date: %s", date)
 	}
@@ -31,6 +31,9 @@ func NextDate(now string, date string, repeat string) (string, error) {
 		return "", fmt.Errorf("invalid repeat code: %s", repeat)
 	}
 	var nextTimeString string
+	if now == date {
+		nextTimeString = date
+	}
 	if codeAndNumber[0] == "y" {
 
 		for {

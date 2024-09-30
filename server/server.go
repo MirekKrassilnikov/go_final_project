@@ -4,15 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/MirekKrassilnikov/go_final_project/repeater"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
-
-const layout = "20060102"
 
 type Task struct {
 	ID      string `json:"id,omitempty"`
@@ -73,7 +70,7 @@ func (ctl *Controller) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err = strconv.Atoi(task.ID)
 	if err != nil {
-		http.Error(w, "Ошибка конвертации:", http.StatusBadRequest)
+		http.Error(w, `{"error":"ошибка конвертации"}`, http.StatusBadRequest)
 		return
 	}
 
@@ -83,10 +80,11 @@ func (ctl *Controller) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(codeAndNumber) == 0 || (codeAndNumber[0] != "y" && codeAndNumber[0] != "d") {
 		http.Error(w, `{"error":"Invalid date format"}`, http.StatusBadRequest)
+		return
 	}
 
 	// Проверка формата даты
-	_, err = time.Parse(layout, task.Date)
+	_, err = time.Parse(repeater.Layout, task.Date)
 	if err != nil {
 		http.Error(w, `{"error":"Invalid date format"}`, http.StatusBadRequest)
 		return
@@ -118,9 +116,9 @@ func (ctl *Controller) UpdateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ctl *Controller) GetAllTasksHandler(w http.ResponseWriter, r *http.Request) {
-	rows, err := ctl.DB.Query("SELECT id, date, title, comment, repeat FROM scheduler ORDER BY date ASC")
+	rows, err := ctl.DB.Query("SELECT id, date, title, comment, repeat FROM scheduler ORDER BY date ASC LIMIT 50")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, `{"error":"error with rows"}`, http.StatusNotFound)
 		return
 	}
 	defer rows.Close()
@@ -130,7 +128,7 @@ func (ctl *Controller) GetAllTasksHandler(w http.ResponseWriter, r *http.Request
 		var task Task
 		err := rows.Scan(&task.ID, &task.Date, &task.Title, &task.Comment, &task.Repeat)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, `{"error":"error with rows"}`, http.StatusNotFound)
 			return
 		}
 		tasks = append(tasks, task)
@@ -204,24 +202,25 @@ func (ctl *Controller) HandlePost(w http.ResponseWriter, r *http.Request) {
 
 	// Проверка формата даты и установка текущей даты, если дата некорректна
 	if task.Date == "" {
-		task.Date = time.Now().Format(layout)
+		task.Date = time.Now().Format(repeater.Layout)
 	}
-	timeTimeDate, err := time.Parse(layout, task.Date)
+	timeTimeDate, err := time.Parse(repeater.Layout, task.Date)
 	if err != nil {
 		http.Error(w, `{"error":"Invalid date format"}`, http.StatusBadRequest)
 		return
 	}
-	if timeTimeDate.Before(time.Now()) {
+	timeNowDateOnly := time.Now().Truncate(24 * time.Hour)
+	if timeTimeDate.Before(timeNowDateOnly) {
 		// Если дата задачи меньше текущей даты и есть правило повторения
 		if task.Repeat != "" {
-			nextDate, err := repeater.NextDate(time.Now().Format(layout), task.Date, task.Repeat)
+			nextDate, err := repeater.NextDate(time.Now().Format(repeater.Layout), task.Date, task.Repeat)
 			if err != nil {
 				http.Error(w, `{"error":"Invalid repeat rule"}`, http.StatusBadRequest)
 				return
 			}
 			task.Date = nextDate
 		} else {
-			task.Date = time.Now().Format(layout)
+			task.Date = time.Now().Format(repeater.Layout)
 		}
 	}
 
@@ -278,15 +277,23 @@ func (ctl *Controller) MarkAsDone(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{}`))
+		//w.Write([]byte(`{}`))
 		return
 	}
 	now := time.Now().Format("20060102")
 	nextDate, err := repeater.NextDate(now, task.Date, task.Repeat)
 	if err != nil {
-		http.Error(w, "Error with calculating next date", http.StatusInternalServerError)
+		http.Error(w, `{"error":"error calculating next date"}`, http.StatusInternalServerError)
 		return
 	}
+
+	nextDateTimeTime, err := time.Parse(repeater.Layout, nextDate)
+	if err != nil {
+		http.Error(w, `{"error":"error date parsing in line 294"}`, http.StatusInternalServerError)
+		return
+	}
+	newNextDateTimeTime := nextDateTimeTime.AddDate(0, 0, -3)
+	nextDate = newNextDateTimeTime.Format("20060102")
 
 	updateSQL := `UPDATE scheduler SET date = ? WHERE id = ?`
 	_, err = ctl.DB.Exec(updateSQL, nextDate, task.ID)
@@ -306,12 +313,17 @@ func (ctl *Controller) MarkAsDone(w http.ResponseWriter, r *http.Request) {
 func (ctl *Controller) DeleteTaskByID(w http.ResponseWriter, r *http.Request) error {
 	id := r.URL.Query().Get("id")
 	if id == "" {
-		return fmt.Errorf("task ID is required")
+		http.Error(w, `{"error":"error calculating next date"}`, http.StatusInternalServerError)
+		return nil
 	}
-
-	_, err := ctl.DB.Exec("DELETE FROM scheduler WHERE id = ?", id)
+	_, err := strconv.Atoi(id)
 	if err != nil {
-		return fmt.Errorf("failed to delete task: %v", err)
+		http.Error(w, `{"error":"invalid id format"}`, http.StatusInternalServerError)
+		return nil
+	}
+	_, err = ctl.DB.Exec("DELETE FROM scheduler WHERE id = ?", id)
+	if err != nil {
+		http.Error(w, `{"error":"failed to delete task"}`, http.StatusInternalServerError)
 	}
 
 	// Если задача успешно удалена, возвращаем пустой JSON {}
@@ -336,13 +348,6 @@ func (ctl *Controller) ApiNextDateHandler(w http.ResponseWriter, r *http.Request
 	dateStr := r.FormValue("date")
 	repeat := r.FormValue("repeat")
 
-	/* Парсим текущую дату
-	now, err := time.Parse("20060102", nowStr)
-	if err != nil {
-		http.Error(w, "Invalid 'now' date format", http.StatusBadRequest)
-		return
-	}
-	*/
 	// Вызываем функцию NextDate
 	nextDate, err := repeater.NextDate(nowStr, dateStr, repeat)
 	if err != nil {
