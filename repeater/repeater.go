@@ -31,9 +31,7 @@ func NextDate(now string, date string, repeat string) (string, error) {
 		return "", fmt.Errorf("invalid repeat code: %s", repeat)
 	}
 	var nextTimeString string
-	if now == date {
-		nextTimeString = date
-	}
+
 	if codeAndNumber[0] == "y" {
 
 		for {
@@ -61,10 +59,10 @@ func NextDate(now string, date string, repeat string) (string, error) {
 		if i > 400 {
 			return "", nil
 		}
-		if codeAndNumber[1] == "1" {
+		/*if codeAndNumber[1] == "1" {
 			nextTime := time.Now().Format("20060102")
 			return nextTime, nil
-		}
+		}*/
 
 		for {
 			nextTime := startDateTimeTime.AddDate(0, 0, i)
