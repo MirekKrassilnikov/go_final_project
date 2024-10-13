@@ -3,13 +3,14 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"github.com/MirekKrassilnikov/go_final_project/createDatabase"
-	"github.com/MirekKrassilnikov/go_final_project/server"
 	"log"
-	_ "modernc.org/sqlite"
 	"net/http"
 	"os"
 	"path/filepath"
+
+	database "github.com/MirekKrassilnikov/go_final_project/Database"
+	"github.com/MirekKrassilnikov/go_final_project/server"
+	_ "modernc.org/sqlite"
 )
 
 // Порт, на котором будет работать сервер
@@ -47,7 +48,7 @@ func main() {
 	}
 
 	if install {
-		createDatabase.CreateDatabase()
+		database.CreateDatabase()
 	} else {
 		fmt.Println("Database already exists")
 	}

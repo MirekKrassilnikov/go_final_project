@@ -4,11 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"github.com/MirekKrassilnikov/go_final_project/repeater"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/MirekKrassilnikov/go_final_project/repeater"
 )
 
 type Task struct {
@@ -286,14 +287,6 @@ func (ctl *Controller) MarkAsDone(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"error calculating next date"}`, http.StatusInternalServerError)
 		return
 	}
-
-	nextDateTimeTime, err := time.Parse(repeater.Layout, nextDate)
-	if err != nil {
-		http.Error(w, `{"error":"error date parsing in line 294"}`, http.StatusInternalServerError)
-		return
-	}
-	newNextDateTimeTime := nextDateTimeTime.AddDate(0, 0, -3)
-	nextDate = newNextDateTimeTime.Format("20060102")
 
 	updateSQL := `UPDATE scheduler SET date = ? WHERE id = ?`
 	_, err = ctl.DB.Exec(updateSQL, nextDate, task.ID)

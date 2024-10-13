@@ -1,8 +1,9 @@
-package createDatabase
+package database
 
 import (
 	"database/sql"
 	"fmt"
+
 	_ "modernc.org/sqlite"
 )
 
